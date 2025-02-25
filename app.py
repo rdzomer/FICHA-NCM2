@@ -2,18 +2,12 @@ import streamlit as st
 import pandas as pd
 from modulos.api_comex import obter_data_ultima_atualizacao, obter_descricao_ncm, obter_dados_comerciais, obter_dados_comerciais_ano_anterior, obter_dados_comerciais_ano_atual
 import modulos.processamento as proc
-import locale
+# import locale  # Não precisamos mais do módulo locale
 from io import BytesIO
+from babel.numbers import format_decimal  # Importar format_decimal
 
-# Tentar configurar o locale para português do Brasil
-try:
-    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-except locale.Error:
-    try:
-        locale.setlocale(locale.LC_ALL, 'pt_BR')  # Tenta uma alternativa
-    except locale.Error:
-        print("Aviso: Não foi possível configurar o locale para pt_BR.")
-
+# --- REMOVA AS TENTATIVAS DE CONFIGURAR locale ---
+# (Não precisamos mais de locale.setlocale)
 
 def obter_e_processar_dados(ncm_code, tipo, last_updated_month=None, last_updated_year=None):
     """Obtém e processa dados de comércio exterior para um determinado NCM e período."""
@@ -51,17 +45,15 @@ def obter_e_processar_dados(ncm_code, tipo, last_updated_month=None, last_update
         return None, None, "Tipo de período inválido."
 
 def formatar_numero(valor):
-    """Formata um número ou string. Números têm separadores de milhar.
-       Strings são retornadas sem modificação.
+    """Formata um número ou string usando babel.
     """
     try:
         valor_float = float(valor)
-        if valor_float.is_integer():
-            return locale.format_string("%d", valor_float, grouping=True)
-        else:
-            return locale.format_string("%.2f", valor_float, grouping=True)
+        # Formata usando babel, com o locale pt_BR
+        return format_decimal(valor_float, format="#,##0.##", locale='pt_BR')
     except (ValueError, TypeError):
         return str(valor)
+
 
 def exibir_dados(df, periodo, error, resumido=False):
     """Exibe os dados no Streamlit, formatando os números.
