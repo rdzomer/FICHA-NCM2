@@ -20,7 +20,7 @@ def obter_e_processar_dados(ncm_code, tipo, last_updated_month=None, last_update
         if erro_import:
             return None, None, erro_import
         df, error = proc.processar_dados_export_import(dados_export, dados_import, last_updated_month)
-        return df, "2025", error
+        return df, "Série Temporal", error
 
     elif tipo == "2024":
         dados_export, erro_export = obter_dados_comerciais_ano_anterior(ncm_code, "export", last_updated_month)
@@ -58,7 +58,7 @@ def formatar_numero(valor):
 
 def exibir_dados(df, periodo, error):
     """Exibe os dados no Streamlit, formatando os números."""
-    st.subheader(f"📊 Dados de {periodo}")  # Mantém o subtítulo original
+    st.subheader(f"📊 Dados de {periodo}")
     if error:
         st.warning(error)
     else:
@@ -87,7 +87,7 @@ def exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial)
             st.warning(f"Erro ao obter dados de 2024: {error_2024}")
         if error_2025_parcial:
             st.warning(f"Erro ao obter dados de 2025 (parcial): {error_2025_parcial}")
-        return  # Sai da função se houver erro
+        return
 
     if df_2024.empty or df_2025_parcial.empty:
         st.warning("Não há dados suficientes para o comparativo.")
@@ -127,7 +127,9 @@ def main():
     ncm_code = st.text_input("Digite o código NCM:", "")
 
     if ncm_code:
-        st.write(f"📌 **Código NCM selecionado:** {ncm_code}")
+        # Formatar o NCM com pontos
+        ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
+        st.write(f"📌 **Código NCM selecionado:** {ncm_formatado}")  # Exibir NCM formatado
 
         # Buscar a descrição do NCM
         descricao = obter_descricao_ncm(ncm_code)
@@ -135,15 +137,15 @@ def main():
             st.error(descricao)
             return
         else:
-            st.success(f"📖 Descrição do NCM: **{descricao}**")
+            st.success(f"📖 Descrição do NCM: **{descricao}** (NCM: {ncm_formatado})")  # Exibir NCM formatado
 
-        # Dados de 2025 (completos)
-        df_2025, periodo_2025, error_2025 = obter_e_processar_dados(ncm_code, "2025", last_updated_month)
+        # Dados de 2025 (completos) - Série Temporal
+        df_2025, periodo_2025, error_2025 = obter_e_processar_dados(ncm_code, "2025", last_updated_month, last_updated_year)
         exibir_dados(df_2025, periodo_2025, error_2025)
 
         # Comparativo 2024 x 2025 (mesmo período)
-        df_2024, _, error_2024 = obter_e_processar_dados(ncm_code, "2024", last_updated_month, last_updated_year)  # Passa last_updated_year
-        df_2025_parcial, _, error_2025_parcial = obter_e_processar_dados(ncm_code, "2025_parcial", last_updated_month, last_updated_year)  # Passa last_updated_year
+        df_2024, _, error_2024 = obter_e_processar_dados(ncm_code, "2024", last_updated_month, last_updated_year)
+        df_2025_parcial, _, error_2025_parcial = obter_e_processar_dados(ncm_code, "2025_parcial", last_updated_month, last_updated_year)
         exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial)
 
 if __name__ == "__main__":
