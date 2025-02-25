@@ -9,7 +9,11 @@ from io import BytesIO
 try:
     locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 except locale.Error:
-    print("Aviso: Não foi possível configurar o locale para pt_BR.")
+    try:
+        locale.setlocale(locale.LC_ALL, 'pt_BR')  # Tenta uma alternativa
+    except locale.Error:
+        print("Aviso: Não foi possível configurar o locale para pt_BR.")
+
 
 def obter_e_processar_dados(ncm_code, tipo, last_updated_month=None, last_updated_year=None):
     """Obtém e processa dados de comércio exterior para um determinado NCM e período."""
@@ -57,7 +61,7 @@ def formatar_numero(valor):
         else:
             return locale.format_string("%.2f", valor_float, grouping=True)
     except (ValueError, TypeError):
-        return str(valor)  # Se não for número, converte para string e retorna
+        return str(valor)
 
 def exibir_dados(df, periodo, error, resumido=False):
     """Exibe os dados no Streamlit, formatando os números.
