@@ -1,13 +1,15 @@
+# app.py
 import streamlit as st
 import pandas as pd
 from modulos.api_comex import obter_data_ultima_atualizacao, obter_descricao_ncm, obter_dados_comerciais, obter_dados_comerciais_ano_anterior, obter_dados_comerciais_ano_atual
 import modulos.processamento as proc
-# import locale  # Não precisamos mais do módulo locale
+import modulos.grafico_importacoes_kg as graf_kg
+import modulos.grafico_exportacoes_kg as graf_exp
 from io import BytesIO
-from babel.numbers import format_decimal  # Importar format_decimal
+from babel.numbers import format_decimal
 
-# --- REMOVA AS TENTATIVAS DE CONFIGURAR locale ---
-# (Não precisamos mais de locale.setlocale)
+# ... (restante do código do app.py) ...
+# (A parte relevante para os gráficos não mudou)
 
 def obter_e_processar_dados(ncm_code, tipo, last_updated_month=None, last_updated_year=None):
     """Obtém e processa dados de comércio exterior para um determinado NCM e período."""
@@ -45,25 +47,15 @@ def obter_e_processar_dados(ncm_code, tipo, last_updated_month=None, last_update
         return None, None, "Tipo de período inválido."
 
 def formatar_numero(valor):
-    """Formata um número ou string usando babel.
-    """
+    """Formata um número ou string usando babel."""
     try:
         valor_float = float(valor)
-        # Formata usando babel, com o locale pt_BR
         return format_decimal(valor_float, format="#,##0.##", locale='pt_BR')
     except (ValueError, TypeError):
         return str(valor)
 
-
 def exibir_dados(df, periodo, error, resumido=False):
-    """Exibe os dados no Streamlit, formatando os números.
-
-    Args:
-        df (pd.DataFrame): O DataFrame a ser exibido.
-        periodo (str): O período dos dados.
-        error (str): Mensagem de erro, se houver.
-        resumido (bool): Se True, exibe a versão resumida do DataFrame.
-    """
+    """Exibe os dados no Streamlit, formatando os números."""
     st.subheader(f"📊 Dados de {periodo}")
     if error:
         st.warning(error)
@@ -72,12 +64,10 @@ def exibir_dados(df, periodo, error, resumido=False):
             if resumido:
                 df = criar_dataframe_resumido(df)
             else:
-                # Renomeia 'year' para 'Ano' na tabela *completa*
                 if 'year' in df.columns:
                     df = df.rename(columns={'year': 'Ano'})
 
             df_formatado = df.copy()
-            # Garante que a coluna 'Ano' seja do tipo string
             if 'Ano' in df_formatado.columns:
                 df_formatado['Ano'] = df_formatado['Ano'].astype(str)
 
@@ -108,13 +98,11 @@ def exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial,
     if resumido:
         df_comparativo = criar_dataframe_resumido(df_comparativo)
     else:
-        #Renomeia year para Ano na tabela completa
         if 'year' in df_comparativo.columns:
             df_comparativo = df_comparativo.rename(columns={'year': 'Ano'})
 
     df_formatado = df_comparativo.copy()
 
-    #Garante que a coluna Ano seja do tipo string
     if 'Ano' in df_formatado.columns:
         df_formatado['Ano'] = df_formatado['Ano'].astype(str)
 
@@ -130,7 +118,7 @@ def criar_dataframe_resumido(df):
         return pd.DataFrame()
     df_resumido = df[['year', 'Exportações (FOB)', 'Exportações (KG)', 'Importações (FOB)',
                       'Importações (KG)', 'Balança Comercial (FOB)', 'Balança Comercial (KG)']]
-    df_resumido = df_resumido.rename(columns={'year': 'Ano'}) #Coluna Ano
+    df_resumido = df_resumido.rename(columns={'year': 'Ano'})
     return df_resumido
 
 def main():
@@ -155,19 +143,15 @@ def main():
         else:
             st.success(f"📖 Descrição: **{descricao}** (NCM: {ncm_formatado})")
 
-        # Checkbox para tabela resumida
         exibir_resumida = st.checkbox("Exibir tabela resumida")
 
-        # Série Temporal
         df_2025, periodo_2025, error_2025 = obter_e_processar_dados(ncm_code, "2025", last_updated_month, last_updated_year)
         exibir_dados(df_2025, periodo_2025, error_2025, resumido=exibir_resumida)
 
-        # Comparativo
         df_2024, _, error_2024 = obter_e_processar_dados(ncm_code, "2024", last_updated_month, last_updated_year)
         df_2025_parcial, _, error_2025_parcial = obter_e_processar_dados(ncm_code, "2025_parcial", last_updated_month, last_updated_year)
         exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial, resumido=exibir_resumida)
 
-        # Botão de Download (só aparece se a tabela resumida estiver ativada)
         if exibir_resumida:
             if df_2025 is not None and not df_2025.empty and df_2024 is not None and not df_2024.empty and df_2025_parcial is not None and not df_2025_parcial.empty :
                 df_download = pd.concat([criar_dataframe_resumido(df_2025), criar_dataframe_resumido(pd.concat([df_2024, df_2025_parcial]))], ignore_index=False)
@@ -190,6 +174,22 @@ def main():
                     file_name=f"comex_resumido_{ncm_formatado}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
+        if df_2025 is not None and not df_2025.empty:
+            st.subheader("📈 Gráfico de Importações (2010-2025)")
+            fig_import = graf_kg.gerar_grafico_importacoes(df_2025, ncm_formatado, last_updated_month, last_updated_year)
+            if fig_import:
+                st.plotly_chart(fig_import)  # Use st.plotly_chart para exibir gráficos Plotly
+            else:
+                st.error("Erro ao gerar o gráfico de importações.")
+
+        if df_2025 is not None and not df_2025.empty:
+            st.subheader("📈 Gráfico de Exportações (2010-2025)")
+            fig_export = graf_exp.gerar_grafico_exportacoes(df_2025, ncm_formatado, last_updated_month, last_updated_year)
+            if fig_export:
+                st.plotly_chart(fig_export)  # Use st.plotly_chart para exibir gráficos Plotly
+            else:
+                st.error("Erro ao gerar o gráfico de exportações.")
 
 if __name__ == "__main__":
     main()
