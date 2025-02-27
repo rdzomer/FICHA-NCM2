@@ -1,3 +1,4 @@
+# modulos/processamento.py (COMPLETO E CORRIGIDO)
 import pandas as pd
 import numpy as np
 
@@ -35,7 +36,7 @@ def _processar_dados(dados_export, dados_import, tipo):
     else:
         return pd.DataFrame(), f"Erro: Nenhum dado válido para combinar para {tipo}."
 
-    # 🔌 Conversão das colunas numéricas
+    # Conversão das colunas numéricas
     colunas_numericas = ['Exportações (FOB)', 'Exportações (KG)', 'Importações (FOB)',
                         'Importações (Frete USD)', 'Importações (Seguro USD)',
                         'Importações (CIF USD)', 'Importações (KG)']
@@ -60,75 +61,46 @@ def _processar_dados(dados_export, dados_import, tipo):
     df_combined.fillna(0, inplace=True)
     return df_combined, None
 
+
 def processar_dados_export_import(dados_export, dados_import, last_updated_month):
     """
-    Processa os dados de exportação e importação de 2025 e calcula métricas adicionais.
-
-    Args:
-        dados_export (list): Lista de dicionários com os dados de exportação.
-        dados_import (list): Lista de dicionários com os dados de importação.
-        last_updated_month (int): Número do último mês atualizado.
-
-    Returns:
-        tuple: Uma tupla contendo (df_combined, error). 'df_combined' é um DataFrame
-               com os dados processados, e 'error' é uma string com a mensagem de
-               erro ou None se não houver erro.
+    Processa os dados de exportação e importação (todos os anos).
     """
-    df_combined, error = _processar_dados(dados_export, dados_import, "2025")
+    df_combined, error = _processar_dados(dados_export, dados_import, "todos")
     if error:
         return df_combined, error
-    df_combined['year'] = df_combined['year'].astype(str)
-    df_combined['year'] = df_combined['year'].replace('2025', f"2025 (Até mês {str(last_updated_month).zfill(2)})")
 
+    # Formatar a coluna 'year' para incluir "(Parcial)" quando necessário
+    df_combined['year'] = df_combined['year'].astype(str)
+    df_combined['year'] = df_combined['year'].apply(lambda x: f"{x} (Até mês {str(last_updated_month).zfill(2)})" if x in ['2025'] else x)
     return df_combined, None
 
 def processar_dados_ano_anterior(dados_export, dados_import, last_updated_month):
     """
-    Processa os dados acumulados de 2024 até o último mês disponível para comparação com 2025.
-
-    Args:
-        dados_export (list): Lista de dicionários com os dados de exportação.
-        dados_import (list): Lista de dicionários com os dados de importação.
-        last_updated_month (int): Número do último mês atualizado.
-
-    Returns:
-        tuple: Uma tupla contendo (df_combined, error). 'df_combined' é um DataFrame
-               com os dados processados, e 'error' é uma string com a mensagem de
-               erro ou None se não houver erro.
+    Processa os dados acumulados de 2024 até o último mês disponível.
     """
     df_combined, error = _processar_dados(dados_export, dados_import, "2024")
-
     if error:
         return df_combined, error
 
+    # Formatar a coluna 'year' para incluir "(Parcial)" quando necessário
     df_combined['year'] = df_combined['year'].astype(str)
-    df_combined['year'] = df_combined['year'].replace('2024', f"2024 (Até mês {str(last_updated_month).zfill(2)})")
-
+    df_combined['year'] = df_combined['year'].apply(lambda x: f"{x} (Até mês {str(last_updated_month).zfill(2)})" if x == '2024' else x)
     return df_combined, None
 
 def processar_dados_ano_atual(dados_export, dados_import, last_updated_month):
     """
     Processa os dados acumulados de 2025 até o último mês disponível.
-
-    Args:
-        dados_export (list): Lista de dicionários com os dados de exportação.
-        dados_import (list): Lista de dicionários com os dados de importação.
-        last_updated_month (int): Número do último mês atualizado.
-
-    Returns:
-        tuple: Uma tupla contendo (df_combined, error). 'df_combined' é um DataFrame
-               com os dados processados, e 'error' é uma string com a mensagem de
-               erro ou None se não houver erro.
     """
     df_combined, error = _processar_dados(dados_export, dados_import, "2025")
-
     if error:
         return df_combined, error
 
+    # Formatar a coluna 'year' para incluir "(Parcial)" quando necessário
     df_combined['year'] = df_combined['year'].astype(str)
-    df_combined['year'] = df_combined['year'].replace('2025', f"2025 (Até mês {str(last_updated_month).zfill(2)})")
-
+    df_combined['year'] = df_combined['year'].apply(lambda x: f"{x} (Até mês {str(last_updated_month).zfill(2)})" if x == '2025' else x)
     return df_combined, None
+
 
 
 
