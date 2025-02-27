@@ -8,39 +8,51 @@ import modulos.grafico_exportacoes_kg as graf_exp
 from io import BytesIO
 from babel.numbers import format_decimal
 
-# ... (restante do código do app.py) ...
-# (A parte relevante para os gráficos não mudou)
-
 def obter_e_processar_dados(ncm_code, tipo, last_updated_month=None, last_updated_year=None):
     """Obtém e processa dados de comércio exterior para um determinado NCM e período."""
     if tipo == "2025":
+        print(f"Obtendo dados para 2025, NCM: {ncm_code}")  # DEBUG
         dados_export, erro_export = obter_dados_comerciais(ncm_code, "export")
+        print(f"Dados de exportação (2025): {dados_export}, Erro: {erro_export}")  # DEBUG
         if erro_export:
             return None, None, erro_export
         dados_import, erro_import = obter_dados_comerciais(ncm_code, "import")
+        print(f"Dados de importação (2025): {dados_import}, Erro: {erro_import}")  # DEBUG
         if erro_import:
             return None, None, erro_import
+        print(f"Chamando processar_dados_export_import com last_updated_month: {last_updated_month}") # DEBUG
         df, error = proc.processar_dados_export_import(dados_export, dados_import, last_updated_month)
+        print(f"DataFrame após processamento (2025): {df}, Erro: {error}")  # DEBUG
         return df, "Série Temporal", error
 
     elif tipo == "2024":
+        print(f"Obtendo dados para 2024, NCM: {ncm_code}")  # DEBUG
         dados_export, erro_export = obter_dados_comerciais_ano_anterior(ncm_code, "export", last_updated_month)
+        print(f"Dados de exportação (2024): {dados_export}, Erro: {erro_export}")  # DEBUG
         if erro_export:
             return None, None, erro_export
         dados_import, erro_import = obter_dados_comerciais_ano_anterior(ncm_code, "import", last_updated_month)
+        print(f"Dados de importação (2024): {dados_import}, Erro: {erro_import}")  # DEBUG
         if erro_import:
             return None, None, erro_import
+        print(f"Chamando processar_dados_ano_anterior com last_updated_month: {last_updated_month}") # DEBUG
         df, error = proc.processar_dados_ano_anterior(dados_export, dados_import, last_updated_month)
+        print(f"DataFrame após processamento (2024): {df}, Erro: {error}")  # DEBUG
         return df, f"2024 (Até {last_updated_month}/{last_updated_year})", error
 
     elif tipo == "2025_parcial":
+        print(f"Obtendo dados para 2025_parcial, NCM: {ncm_code}")  # DEBUG
         dados_export, erro_export = obter_dados_comerciais_ano_atual(ncm_code, "export", last_updated_month)
+        print(f"Dados de exportação (2025_parcial): {dados_export}, Erro: {erro_export}")  # DEBUG
         if erro_export:
             return None, None, erro_export
         dados_import, erro_import = obter_dados_comerciais_ano_atual(ncm_code, "import", last_updated_month)
+        print(f"Dados de importação (2025_parcial): {dados_import}, Erro: {erro_import}")  # DEBUG
         if erro_import:
             return None, None, erro_import
+        print(f"Chamando processar_dados_ano_atual com last_updated_month: {last_updated_month}") # DEBUG
         df, error = proc.processar_dados_ano_atual(dados_export, dados_import, last_updated_month)
+        print(f"DataFrame após processamento (2025_parcial): {df}, Erro: {error}")  # DEBUG
         return df, f"2025 (Até {last_updated_month}/{last_updated_year})", error
 
     else:
@@ -177,17 +189,17 @@ def main():
 
         if df_2025 is not None and not df_2025.empty:
             st.subheader("📈 Gráfico de Importações (2010-2025)")
-            fig_import = graf_kg.gerar_grafico_importacoes(df_2025, ncm_formatado, last_updated_month, last_updated_year)
+            fig_import = graf_kg.gerar_grafico_importacoes(df_2025, ncm_formatado, last_updated_month, last_updated_year)  # Chamada refatorada
             if fig_import:
-                st.plotly_chart(fig_import)  # Use st.plotly_chart para exibir gráficos Plotly
+                st.plotly_chart(fig_import)
             else:
                 st.error("Erro ao gerar o gráfico de importações.")
 
         if df_2025 is not None and not df_2025.empty:
             st.subheader("📈 Gráfico de Exportações (2010-2025)")
-            fig_export = graf_exp.gerar_grafico_exportacoes(df_2025, ncm_formatado, last_updated_month, last_updated_year)
+            fig_export = graf_exp.gerar_grafico_exportacoes(df_2025, ncm_formatado, last_updated_month, last_updated_year)  # Chamada refatorada
             if fig_export:
-                st.plotly_chart(fig_export)  # Use st.plotly_chart para exibir gráficos Plotly
+                st.plotly_chart(fig_export)
             else:
                 st.error("Erro ao gerar o gráfico de exportações.")
 
