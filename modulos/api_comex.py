@@ -1,3 +1,4 @@
+# api_comex.py
 import requests
 import time
 import random
@@ -115,9 +116,11 @@ def obter_dados_comerciais(ncm_code, flow):
         "metrics": ["metricFOB", "metricKG"]
     }
 
+    print(f"Requisição para obter_dados_comerciais: URL={url}, payload={body}")  # DEBUG
     response = _fazer_requisicao(url, payload=body)
     if response:
         data = response.json().get('data', {}).get('list', [])
+        print(f"Resposta da API (obter_dados_comerciais): {data}")  # DEBUG
         return data, None
     else:
         return [], "Erro ao obter dados da API."
@@ -149,9 +152,11 @@ def obter_dados_comerciais_ano_anterior(ncm_code, flow, last_updated_month):
         "metrics": ["metricFOB", "metricKG"]
     }
 
+    print(f"Requisição para obter_dados_comerciais_ano_anterior: URL={url}, payload={payload}")  # DEBUG
     response = _fazer_requisicao(url, payload=payload)
     if response:
         data = response.json().get('data', {}).get('list', [])
+        print(f"Resposta da API (obter_dados_comerciais_ano_anterior): {data}")  # DEBUG
         return data, None
     else:
         return [], "Erro ao obter dados da API."
@@ -183,9 +188,11 @@ def obter_dados_comerciais_ano_atual(ncm_code, flow, last_updated_month):
         "metrics": ["metricFOB", "metricKG"]
     }
 
+    print(f"Requisição para obter_dados_comerciais_ano_atual: URL={url}, payload={payload}")  # DEBUG
     response = _fazer_requisicao(url, payload=payload)  # Usa a função auxiliar
     if response:
         data = response.json().get('data', {}).get('list', [])
+        print(f"Resposta da API (obter_dados_comerciais_ano_atual): {data}")  # DEBUG
         return data, None
     else:
         return [], "Erro ao obter dados da API."
