@@ -1,4 +1,4 @@
-# app.py
+# app.py (COMPLETO E ATUALIZADO - com 2024 parcial nos gráficos)
 import streamlit as st
 import pandas as pd
 from modulos.api_comex import obter_data_ultima_atualizacao, obter_descricao_ncm, obter_dados_comerciais, obter_dados_comerciais_ano_anterior, obter_dados_comerciais_ano_atual
@@ -189,7 +189,7 @@ def main():
 
         if df_2025 is not None and not df_2025.empty:
             st.subheader("📈 Gráfico de Importações (2010-2025)")
-            fig_import = graf_kg.gerar_grafico_importacoes(df_2025, ncm_formatado, last_updated_month, last_updated_year)  # Chamada refatorada
+            fig_import = graf_kg.gerar_grafico_importacoes(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)  # Chamada refatorada
             if fig_import:
                 st.plotly_chart(fig_import)
             else:
@@ -197,7 +197,7 @@ def main():
 
         if df_2025 is not None and not df_2025.empty:
             st.subheader("📈 Gráfico de Exportações (2010-2025)")
-            fig_export = graf_exp.gerar_grafico_exportacoes(df_2025, ncm_formatado, last_updated_month, last_updated_year)  # Chamada refatorada
+            fig_export = graf_exp.gerar_grafico_exportacoes(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)  # Chamada refatorada
             if fig_export:
                 st.plotly_chart(fig_export)
             else:
@@ -205,6 +205,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
