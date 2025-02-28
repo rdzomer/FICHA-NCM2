@@ -1,4 +1,4 @@
-# modulos/grafico_preco_medio_fob.py (VERSÃO DE ONTEM)
+# modulos/grafico_preco_medio_fob.py (CÓDIGO CORRETO COM RÓTULOS AJUSTADOS)
 import plotly.graph_objects as go
 import pandas as pd
 from babel.numbers import format_decimal
@@ -46,8 +46,8 @@ def gerar_grafico_preco_medio(df_2025, df_2024_parcial, ncm_formatado):
     df_plot['sort_key'] = df_plot.apply(custom_sort_key, axis=1)
     df_plot = df_plot.sort_values(by='sort_key').drop(columns=['sort_key'])
 
-    # Criar rótulos do eixo X *após* a ordenação
-    df_plot['eixo_x'] = df_plot.apply(lambda row: f"{row['year']}" if row['year'] == '2024 (Parcial)' else f"{row['mes']:02d}/{row['year']}", axis=1)
+    # --- Alteração 1: Criar rótulos do eixo X (APENAS O ANO) ---
+    df_plot['eixo_x'] = df_plot['year'].apply(lambda x: str(x))  # Convertendo para string para todos os casos
 
     # --- Criar o Gráfico ---
     fig = go.Figure()
@@ -60,11 +60,16 @@ def gerar_grafico_preco_medio(df_2025, df_2024_parcial, ncm_formatado):
                              mode='lines+markers', name='Preço Médio Importação (FOB)',
                              line=dict(color='red')))
 
+    # --- Alteração 2: Configurar eixo X com inclinação ---
     fig.update_layout(
         title=f'Preço Médio (US$ FOB/KG) de Importação e Exportação - NCM {ncm_formatado}',
-        xaxis_title='Mês/Ano',
+        xaxis_title='Ano',
         yaxis_title='Preço Médio (US$ FOB/KG)',
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(  # Adicionando configurações específicas do eixo X aqui
+            type='category',  # Garante ordem correta
+            tickangle=-45  # Inclinação de 45 graus para evitar sobreposição
+        )
     )
 
     # --- Escala Dinâmica do Eixo Y ---
