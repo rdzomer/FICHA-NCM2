@@ -1,85 +1,70 @@
-# modulos/grafico_preco_medio_fob.py (CÓDIGO CORRETO COM RÓTULOS AJUSTADOS)
+# modulos/grafico_preco_medio_fob.py
 import plotly.graph_objects as go
 import pandas as pd
-from babel.numbers import format_decimal
-from .grafico_base import _calcular_ticks_eixo_y
+
+def _calcular_ticks_eixo_y(max_value):
+    """Calcula intervalos seguros para diferentes faixas de valores"""
+    if max_value == 0:
+        return [0, 0.5], ['0.00', '0.50']
+    
+    step = max_value / 5
+    ticks = [i * step for i in range(6)]
+    return ticks, [f"{tick:.4f}" for tick in ticks]
 
 def gerar_grafico_preco_medio(df_2025, df_2024_parcial, ncm_formatado):
     if df_2025 is None or df_2025.empty:
         return go.Figure()
 
-    # --- Preparar DataFrame de 2025 ---
-    df_2025 = df_2025.copy()
-    df_2025['Preco Medio Export (FOB)'] = df_2025['Exportações (FOB)'] / df_2025['Exportações (KG)']
-    df_2025['Preco Medio Import (FOB)'] = df_2025['Importações (FOB)'] / df_2025['Importações (KG)']
-    meses_2025 = df_2025['year'].str.extract(r'\(Até mês (\d+)\)').dropna()[0].astype(int).tolist()
-    if not meses_2025:
-        meses_2025 = list(range(1, 13))
+    try:
+        # Processamento básico dos dados (mantido original)
+        df_2025 = df_2025.copy()
+        df_2025['Preco Export'] = df_2025['Exportações (FOB)'] / df_2025['Exportações (KG)']
+        df_2025['Preco Import'] = df_2025['Importações (FOB)'] / df_2025['Importações (KG)']
+        
+        # Processamento 2024 (versão simplificada)
+        df_2024_proc = pd.DataFrame()
+        if df_2024_parcial is not None and not df_2024_parcial.empty:
+            df_2024_proc = df_2024_parcial.copy()
+            df_2024_proc['Preco Export'] = df_2024_parcial['Exportações (FOB)'] / df_2024_parcial['Exportações (KG)']
+            df_2024_proc['Preco Import'] = df_2024_parcial['Importações (FOB)'] / df_2024_parcial['Importações (KG)']
+            df_2024_proc['year'] = '2024 (Parcial)'
 
-    # --- Preparar DataFrame de 2024 Parcial ---
-    if df_2024_parcial is not None and not df_2024_parcial.empty:
-        df_2024_parcial = df_2024_parcial.copy()
-        df_2024_parcial['Preco Medio Export (FOB)'] = df_2024_parcial['Exportações (FOB)'] / df_2024_parcial['Exportações (KG)']
-        df_2024_parcial['Preco Medio Import (FOB)'] = df_2024_parcial['Importações (FOB)'] / df_2024_parcial['Importações (KG)']
-        df_2024_parcial['mes'] = df_2024_parcial['year'].str.extract(r'\(Até mês (\d+)\)').dropna()[0].astype(int)
-        df_2024_parcial = df_2024_parcial[df_2024_parcial['mes'].isin(meses_2025)]
-        df_2024_parcial['year'] = '2024 (Parcial)'
-    else:
-        df_2024_parcial = pd.DataFrame(columns=df_2025.columns)
+        # Combinação segura dos dados
+        df_plot = pd.concat([
+            df_2025[['year', 'Preco Export', 'Preco Import']],
+            df_2024_proc[['year', 'Preco Export', 'Preco Import']]
+        ], ignore_index=True)
 
-    # --- Combinar os DataFrames ---
-    df_2025['mes'] = df_2025['year'].str.extract(r'\(Até mês (\d+)\)').fillna('12').astype(int)
-    df_2025['year'] = df_2025['year'].str.replace(r' \(Até mês \d+\)', '', regex=True)
-    df_plot = pd.concat([df_2025, df_2024_parcial], ignore_index=True)
+        # Ordenação simplificada
+        df_plot['ano_num'] = df_plot['year'].apply(lambda x: 2026 if '2024' in str(x) else int(str(x)[:4]))
+        df_plot = df_plot.sort_values('ano_num')
 
-    # --- Preparar dados para o gráfico (ORDENAÇÃO CORRETA) ---
+        # Criação do gráfico
+        fig = go.Figure()
+        
+        # Adição das séries (configuração básica)
+        for serie, cor, nome in [('Preco Export', 'blue', 'Exportação'), 
+                               ('Preco Import', 'red', 'Importação')]:
+            fig.add_trace(go.Scatter(
+                x=df_plot['year'],
+                y=df_plot[serie],
+                name=nome,
+                mode='lines+markers',
+                line=dict(color=cor)
+            ))
 
-    # Ordenação: Tratar '2024 (Parcial)' como se fosse 2026
-    def custom_sort_key(row):
-        year = row['year']
-        month = row['mes']
-        if year == '2024 (Parcial)':
-            return (2026, month)  # Ordena como 2026
-        else:
-            return (int(year), month)
-
-    df_plot['sort_key'] = df_plot.apply(custom_sort_key, axis=1)
-    df_plot = df_plot.sort_values(by='sort_key').drop(columns=['sort_key'])
-
-    # --- Alteração 1: Criar rótulos do eixo X (APENAS O ANO) ---
-    df_plot['eixo_x'] = df_plot['year'].apply(lambda x: str(x))  # Convertendo para string para todos os casos
-
-    # --- Criar o Gráfico ---
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(x=df_plot['eixo_x'], y=df_plot['Preco Medio Export (FOB)'],
-                             mode='lines+markers', name='Preço Médio Exportação (FOB)',
-                             line=dict(color='blue')))
-
-    fig.add_trace(go.Scatter(x=df_plot['eixo_x'], y=df_plot['Preco Medio Import (FOB)'],
-                             mode='lines+markers', name='Preço Médio Importação (FOB)',
-                             line=dict(color='red')))
-
-    # --- Alteração 2: Configurar eixo X com inclinação ---
-    fig.update_layout(
-        title=f'Preço Médio (US$ FOB/KG) de Importação e Exportação - NCM {ncm_formatado}',
-        xaxis_title='Ano',
-        yaxis_title='Preço Médio (US$ FOB/KG)',
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis=dict(  # Adicionando configurações específicas do eixo X aqui
-            type='category',  # Garante ordem correta
-            tickangle=-45  # Inclinação de 45 graus para evitar sobreposição
+        # Configuração de layout segura
+        fig.update_layout(
+            title=f'Preço Médio - NCM {ncm_formatado}',
+            xaxis_title='Ano',
+            yaxis_title='US$ FOB/KG',
+            xaxis=dict(type='category', tickangle=-45),
+            legend=dict(orientation="h", y=1.1),
+            height=500
         )
-    )
 
-    # --- Escala Dinâmica do Eixo Y ---
-    max_y = max(df_plot['Preco Medio Export (FOB)'].max(), df_plot['Preco Medio Import (FOB)'].max())
-    tickvals, ticktext, dtick = _calcular_ticks_eixo_y(max_y)
-    fig.update_yaxes(
-        tickmode='array',
-        tickvals=tickvals,
-        ticktext=ticktext,
-        dtick=dtick
-    )
+        return fig
 
-    return fig
+    except Exception as e:
+        print(f"Erro na geração do gráfico: {str(e)}")
+        return go.Figure()
