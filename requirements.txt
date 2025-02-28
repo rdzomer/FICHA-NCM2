@@ -4,4 +4,4 @@ xlsxwriter
 babel
 requests
 plotly
-urllib3<2
+#urllib3<2
