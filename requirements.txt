@@ -5,4 +5,5 @@ babel
 requests
 plotly
 openpyxl
+matplotlib
 #urllib3<2
