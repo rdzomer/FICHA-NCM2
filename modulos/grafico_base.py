@@ -1,4 +1,3 @@
-# modulos/grafico_base.py (CORRIGIDO)
 import plotly.express as px
 import pandas as pd
 import numpy as np  # <--- IMPORTE O NUMPY!
@@ -12,7 +11,7 @@ def _calcular_ticks_eixo_y(max_valor):
         return [0], ['0'], 1
 
     espacamento = max_valor * 0.1
-    ordem_grandeza = 10 ** int(np.floor(np.log10(espacamento)))  # Use np diretamente
+    ordem_grandeza = 10 ** int(np.floor(np.log10(espacamento)))
     espacamento_arredondado = round(espacamento / ordem_grandeza) * ordem_grandeza
 
     if espacamento_arredondado * 2 > max_valor:
@@ -27,11 +26,15 @@ def _calcular_ticks_eixo_y(max_valor):
     return tickvals, ticktext, espacamento_arredondado
 
 def _gerar_grafico_base(df, df_2024_parcial, tipo_dado, ncm_formatado, last_updated_month, last_updated_year, tipo_valor='KG'):
-    """Gera um gráfico de barras, agora com escala dinâmica do eixo Y."""
+    """
+    Gera um gráfico de barras, agora com escala dinâmica do eixo Y.
+    """
     if df.empty:
         return px.bar()
 
     df_plot = df.copy()
+    # Remover espaços em branco dos nomes das colunas (para evitar KeyErrors)
+    df_plot.columns = df_plot.columns.str.strip()
 
     # --- Preparação dos dados ---
     df_plot['year'] = df_plot['year'].astype(str).str.replace(r' \(Até mês \d{2}\)', '', regex=True)
