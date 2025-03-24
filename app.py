@@ -9,7 +9,9 @@ from modulos.api_comex import (
     obter_descricao_ncm,
     obter_dados_comerciais,
     obter_dados_comerciais_ano_anterior,
-    obter_dados_comerciais_ano_atual
+    obter_dados_comerciais_ano_atual,
+    obter_dados_2024_por_pais,
+    obter_dados_2024_por_pais_export
 )
 import modulos.processamento as proc
 import modulos.grafico_importacoes_kg as graf_kg
@@ -19,10 +21,15 @@ import modulos.grafico_exportacoes_fob as graf_exp_fob
 import modulos.grafico_preco_medio_fob as graf_preco_medio
 import modulos.resumo_tabelas as resumo_tabelas
 
-# ====== Importação do novo módulo do gráfico de 12 meses ======
+# ====== Importação do novo módulo do Treemap de Importações ======
+from modulos.grafico_treemap_import import gerar_treemap_importacoes_2024
+
+# ====== Importação do novo módulo do Treemap de Exportações ======
+from modulos.grafico_treemap_export import gerar_treemap_exportacoes_2024
+
+# ====== Importação do gráfico de 12 meses, se houver ======
 from modulos.grafico_importacoes_12meses import gerar_grafico_importacoes_12meses
 
-# ====== Funções auxiliares ======
 def formatar_numero(valor):
     try:
         return format_decimal(float(valor), format="#,##0.##", locale='pt_BR')
@@ -32,7 +39,6 @@ def formatar_numero(valor):
 def criar_dataframe_resumido(df):
     if df is None or df.empty:
         return pd.DataFrame()
-    # Preserva a ordem original (assumindo que os dados já estão ordenados por 'year' em ordem ascendente)
     return df[['year', 'Exportações (FOB)', 'Exportações (KG)',
                'Importações (FOB)', 'Importações (KG)',
                'Balança Comercial (FOB)', 'Balança Comercial (KG)']].rename(columns={'year': 'Ano'})
@@ -45,9 +51,8 @@ def exibir_dados(df, periodo, error, resumido=False):
     if df is None or df.empty:
         st.write("Nenhum dado para exibir.")
         return
-    # Ordena os dados de forma ascendente pelo ano
     if 'year' in df.columns:
-        df = df.sort_values(by='year')
+        df = df.sort_values(by='year')  # Ordem ascendente
         df = df.rename(columns={'year': 'Ano'})
     if resumido:
         df = criar_dataframe_resumido(df)
@@ -81,7 +86,6 @@ def obter_dados_tuple(ncm_code, tipo, last_updated_month):
         dados_export, _ = obter_dados_comerciais_ano_atual(ncm_code, "export", last_updated_month)
         dados_import, _ = obter_dados_comerciais_ano_atual(ncm_code, "import", last_updated_month)
     elif tipo == "2024_parcial":
-        # Nova consulta para os dados parciais de 2024
         dados_export, _ = obter_dados_comerciais_ano_atual(ncm_code, "export", last_updated_month)
         dados_import, _ = obter_dados_comerciais_ano_atual(ncm_code, "import", last_updated_month)
     else:
@@ -139,9 +143,39 @@ def exibir_excel(ncm_code):
         else:
             st.warning("Não há informações das entidades para este NCM.")
 
+def exibir_treemap_import_2024(ncm_code, ncm_formatado):
+    """
+    Obtém dados de 2024 por país (import) e exibe o treemap de Importações 2024 (US$ FOB).
+    """
+    dados = obter_dados_2024_por_pais(ncm_code)
+    if not dados:
+        st.warning("Nenhum dado de importações 2024 por país disponível para gerar o Treemap.")
+        return
+    df_import_2024_country = pd.DataFrame(dados)
+    if "country" not in df_import_2024_country.columns or "metricFOB" not in df_import_2024_country.columns:
+        st.warning("Os dados retornados não possuem as colunas esperadas (country, metricFOB).")
+        return
+    fig = gerar_treemap_importacoes_2024(df_import_2024_country, ncm_code, ncm_formatado)
+    st.plotly_chart(fig)
+
+def exibir_treemap_export_2024(ncm_code, ncm_formatado):
+    """
+    Obtém dados de 2024 por país (export) e exibe o treemap de Exportações 2024 (US$ FOB).
+    """
+    dados = obter_dados_2024_por_pais_export(ncm_code)
+    if not dados:
+        st.warning("Nenhum dado de exportações 2024 por país disponível para gerar o Treemap.")
+        return
+    df_export_2024_country = pd.DataFrame(dados)
+    if "country" not in df_export_2024_country.columns or "metricFOB" not in df_export_2024_country.columns:
+        st.warning("Os dados retornados não possuem as colunas esperadas (country, metricFOB).")
+        return
+    fig = gerar_treemap_exportacoes_2024(df_export_2024_country, ncm_code, ncm_formatado)
+    st.plotly_chart(fig)
+
 def exibir_api(ncm_code, last_updated_month, last_updated_year):
     st.subheader("📊 Dados da API e Gráficos")
-    exibir_resumida = st.checkbox("Exibir tabela resumida", key="chk_resumido")
+    exibir_resumida = st.checkbox("Exibir tabela resumida", key="chk_resumida")
     
     # Série Temporal 2025
     dados_export, dados_import = obter_dados_tuple(ncm_code, "2025", last_updated_month)
@@ -193,17 +227,23 @@ def exibir_api(ncm_code, last_updated_month, last_updated_year):
         st.plotly_chart(fig_preco_medio)
         
         st.subheader("📈 Gráfico - Importações Acumuladas nos Últimos 12 Meses (KG)")
-        from modulos.grafico_importacoes_12meses import gerar_grafico_importacoes_12meses
         fig_12m = gerar_grafico_importacoes_12meses(ncm_code, ncm_formatado)
         if fig_12m is not None:
             st.pyplot(fig_12m)
         else:
             st.warning("Não foi possível gerar o gráfico de importações 12 meses (dados indisponíveis).")
+        
+        # Treemap de Importações 2024
+        st.subheader("Treemap - Origem das Importações 2024 (US$ FOB)")
+        exibir_treemap_import_2024(ncm_code, ncm_formatado)
+        
+        # Treemap de Exportações 2024
+        st.subheader("Treemap - Destino das Exportações 2024 (US$ FOB)")
+        exibir_treemap_export_2024(ncm_code, ncm_formatado)
 
 def main():
     st.title("📊 Análise de Comércio Exterior")
     
-    # 1. Obtenção de data de atualização
     last_updated_date, last_updated_year, last_updated_month = obter_data_ultima_atualizacao()
     if last_updated_date == "Erro":
         st.error("❌ Erro ao obter data de atualização.")
@@ -211,7 +251,6 @@ def main():
     else:
         st.info(f"📅 Atualizado até: {last_updated_month}/{last_updated_year} ({last_updated_date})")
     
-    # 2. Upload do arquivo Excel (opcional)
     uploaded_file = st.file_uploader("Upload do arquivo Excel:", type=["xlsx"])
     if uploaded_file:
         try:
@@ -220,29 +259,21 @@ def main():
             st.error(f"Erro ao carregar arquivo Excel: {str(e)}")
             st.session_state.df_excel = None
     
-    # 3. Input do NCM
     ncm_code = st.text_input("Digite o código NCM:")
     if not ncm_code:
         st.stop()
     
-    # 4. Formatação do NCM para exibição
     ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
     st.write(f"📌 NCM selecionado: {ncm_formatado}")
     
-    # 5. Consulta a descrição do NCM via API
     descricao = obter_descricao_ncm(ncm_code)
     if "Erro" in descricao:
         st.error(descricao)
         st.stop()
     st.success(f"📖 Descrição: **{descricao}** (NCM: {ncm_formatado})")
-    
-    # 6. Se houver Excel, exibe os dados dele
+
     exibir_excel(ncm_code)
-    
-    # 7. Exibe dados e gráficos oriundos da API
     exibir_api(ncm_code, last_updated_month, last_updated_year)
 
 if __name__ == "__main__":
     main()
-
-
