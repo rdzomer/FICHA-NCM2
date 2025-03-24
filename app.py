@@ -1,5 +1,9 @@
 import streamlit as st
 import pandas as pd
+from io import BytesIO
+from babel.numbers import format_decimal
+
+# ====== Importações dos módulos existentes ======
 from modulos.api_comex import (
     obter_data_ultima_atualizacao,
     obter_descricao_ncm,
@@ -14,14 +18,75 @@ import modulos.grafico_importacoes_fob as graf_fob
 import modulos.grafico_exportacoes_fob as graf_exp_fob
 import modulos.grafico_preco_medio_fob as graf_preco_medio
 import modulos.resumo_tabelas as resumo_tabelas
-from io import BytesIO
-from babel.numbers import format_decimal
 
+# ====== Importação do novo módulo do gráfico de 12 meses ======
+from modulos.grafico_importacoes_12meses import gerar_grafico_importacoes_12meses
+
+# ====== Funções auxiliares ======
 def formatar_numero(valor):
     try:
         return format_decimal(float(valor), format="#,##0.##", locale='pt_BR')
     except (ValueError, TypeError):
         return str(valor)
+
+def criar_dataframe_resumido(df):
+    if df is None or df.empty:
+        return pd.DataFrame()
+    # Preserva a ordem original (assumindo que os dados já estão ordenados por 'year' em ordem ascendente)
+    return df[['year', 'Exportações (FOB)', 'Exportações (KG)',
+               'Importações (FOB)', 'Importações (KG)',
+               'Balança Comercial (FOB)', 'Balança Comercial (KG)']].rename(columns={'year': 'Ano'})
+
+def exibir_dados(df, periodo, error, resumido=False):
+    st.markdown(f"### Dados de {periodo}")
+    if error:
+        st.warning(error)
+        return
+    if df is None or df.empty:
+        st.write("Nenhum dado para exibir.")
+        return
+    # Ordena os dados de forma ascendente pelo ano
+    if 'year' in df.columns:
+        df = df.sort_values(by='year')
+        df = df.rename(columns={'year': 'Ano'})
+    if resumido:
+        df = criar_dataframe_resumido(df)
+    df_formatado = df.copy()
+    if 'Ano' in df_formatado:
+        df_formatado['Ano'] = df_formatado['Ano'].astype(str)
+    colunas_numericas = [col for col in df_formatado if col != 'Ano']
+    df_formatado[colunas_numericas] = df_formatado[colunas_numericas].applymap(formatar_numero)
+    st.dataframe(df_formatado)
+
+def exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial, resumido=False):
+    st.markdown("### Comparativo 2024 x 2025 (Mesmo Período)")
+    if error_2024 or error_2025_parcial:
+        st.warning("Erro: " + (error_2024 or error_2025_parcial))
+        return
+    if df_2024 is None or df_2024.empty or df_2025_parcial is None or df_2025_parcial.empty:
+        st.warning("Não há dados suficientes para comparação.")
+        return
+    df_comparativo = pd.concat([df_2024, df_2025_parcial], ignore_index=True)
+    df_comparativo = df_comparativo.sort_values(by='year')
+    exibir_dados(df_comparativo, "Comparativo", None, resumido)
+
+def obter_dados_tuple(ncm_code, tipo, last_updated_month):
+    if tipo == "2025":
+        dados_export, _ = obter_dados_comerciais(ncm_code, "export")
+        dados_import, _ = obter_dados_comerciais(ncm_code, "import")
+    elif tipo == "2024":
+        dados_export, _ = obter_dados_comerciais_ano_anterior(ncm_code, "export", last_updated_month)
+        dados_import, _ = obter_dados_comerciais_ano_anterior(ncm_code, "import", last_updated_month)
+    elif tipo == "2025_parcial":
+        dados_export, _ = obter_dados_comerciais_ano_atual(ncm_code, "export", last_updated_month)
+        dados_import, _ = obter_dados_comerciais_ano_atual(ncm_code, "import", last_updated_month)
+    elif tipo == "2024_parcial":
+        # Nova consulta para os dados parciais de 2024
+        dados_export, _ = obter_dados_comerciais_ano_atual(ncm_code, "export", last_updated_month)
+        dados_import, _ = obter_dados_comerciais_ano_atual(ncm_code, "import", last_updated_month)
+    else:
+        dados_export, dados_import = [], []
+    return dados_export, dados_import
 
 def exibir_excel(ncm_code):
     if "df_excel" not in st.session_state or st.session_state.df_excel is None:
@@ -72,104 +137,81 @@ def exibir_excel(ncm_code):
                 """
             st.markdown(entidade_info, unsafe_allow_html=True)
         else:
-            st.warning("Não há informações das entidades para este NCM no Excel.")
+            st.warning("Não há informações das entidades para este NCM.")
 
 def exibir_api(ncm_code, last_updated_month, last_updated_year):
     st.subheader("📊 Dados da API e Gráficos")
     exibir_resumida = st.checkbox("Exibir tabela resumida", key="chk_resumido")
+    
+    # Série Temporal 2025
     dados_export, dados_import = obter_dados_tuple(ncm_code, "2025", last_updated_month)
     df_2025, error_2025 = proc.processar_dados_export_import(dados_export, dados_import, last_updated_month)
     periodo_2025 = "Série Temporal"
+    
+    # Dados completos de 2024
     dados_export, dados_import = obter_dados_tuple(ncm_code, "2024", last_updated_month)
     df_2024, error_2024 = proc.processar_dados_ano_anterior(dados_export, dados_import, last_updated_month)
     periodo_2024 = f"2024 (Até {last_updated_month}/{last_updated_year})"
+    
+    # Dados parciais de 2025
     dados_export, dados_import = obter_dados_tuple(ncm_code, "2025_parcial", last_updated_month)
     df_2025_parcial, error_2025_parcial = proc.processar_dados_ano_atual(dados_export, dados_import, last_updated_month)
     periodo_2025_parcial = f"2025 (Até {last_updated_month}/{last_updated_year})"
+    
+    # Dados parciais de 2024 (para o gráfico de preço médio)
+    dados_export, dados_import = obter_dados_tuple(ncm_code, "2024_parcial", last_updated_month)
+    df_2024_parcial, error_2024_parcial = proc.processar_dados_ano_atual(dados_export, dados_import, last_updated_month)
+    
     exibir_dados(df_2025, periodo_2025, error_2025, exibir_resumida)
     exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial, exibir_resumida)
     
-    # Exibe os quadros-resumo logo após os dados comparativos
+    # Exibe os quadros-resumo
     resumo_tabelas.exibir_resumos()
     
-    # Geração dos gráficos
+    # Geração dos gráficos existentes
     if df_2025 is not None and not df_2025.empty:
         ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
+        
         st.subheader("📈 Gráfico de Importações (KG)")
         fig_import_kg = graf_kg.gerar_grafico_importacoes(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
         st.plotly_chart(fig_import_kg)
+        
         st.subheader("📈 Gráfico de Exportações (KG)")
         fig_export_kg = graf_exp.gerar_grafico_exportacoes(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
         st.plotly_chart(fig_export_kg)
+        
         st.subheader("📈 Gráfico de Importações (US$ FOB)")
         fig_import_fob = graf_fob.gerar_grafico_importacoes_fob(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
         st.plotly_chart(fig_import_fob)
+        
         st.subheader("📈 Gráfico de Exportações (US$ FOB)")
         fig_export_fob = graf_exp_fob.gerar_grafico_exportacoes_fob(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
         st.plotly_chart(fig_export_fob)
+        
         st.subheader("📈 Gráfico de Preço Médio (US$ FOB/KG)")
-        fig_preco_medio = graf_preco_medio.gerar_grafico_preco_medio(df_2025, df_2024, ncm_formatado, last_updated_month)
+        fig_preco_medio = graf_preco_medio.gerar_grafico_preco_medio(df_2025, df_2024_parcial, ncm_formatado, last_updated_month)
         st.plotly_chart(fig_preco_medio)
-
-def obter_dados_tuple(ncm_code, tipo, last_updated_month):
-    if tipo == "2025":
-        dados_export, _ = obter_dados_comerciais(ncm_code, "export")
-        dados_import, _ = obter_dados_comerciais(ncm_code, "import")
-    elif tipo == "2024":
-        dados_export, _ = obter_dados_comerciais_ano_anterior(ncm_code, "export", last_updated_month)
-        dados_import, _ = obter_dados_comerciais_ano_anterior(ncm_code, "import", last_updated_month)
-    elif tipo == "2025_parcial":
-        dados_export, _ = obter_dados_comerciais_ano_atual(ncm_code, "export", last_updated_month)
-        dados_import, _ = obter_dados_comerciais_ano_atual(ncm_code, "import", last_updated_month)
-    else:
-        dados_export, dados_import = [], []
-    return dados_export, dados_import
-
-def exibir_dados(df, periodo, error, resumido=False):
-    st.markdown(f"### Dados de {periodo}")
-    if error:
-        st.warning(error)
-        return
-    if df is None or df.empty:
-        st.write("Nenhum dado para exibir.")
-        return
-    if resumido:
-        df = criar_dataframe_resumido(df)
-    elif 'year' in df.columns:
-        df = df.rename(columns={'year': 'Ano'})
-    df_formatado = df.copy()
-    if 'Ano' in df_formatado:
-        df_formatado['Ano'] = df_formatado['Ano'].astype(str)
-    colunas_numericas = [col for col in df_formatado if col != 'Ano']
-    df_formatado[colunas_numericas] = df_formatado[colunas_numericas].applymap(formatar_numero)
-    st.dataframe(df_formatado)
-
-def exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial, resumido=False):
-    st.markdown("### Comparativo 2024 x 2025 (Mesmo Período)")
-    if error_2024 or error_2025_parcial:
-        st.warning("Erro: " + (error_2024 or error_2025_parcial))
-        return
-    if df_2024 is None or df_2024.empty or df_2025_parcial is None or df_2025_parcial.empty:
-        st.warning("Não há dados suficientes para comparação.")
-        return
-    df_comparativo = pd.concat([df_2024, df_2025_parcial], ignore_index=True)
-    exibir_dados(df_comparativo, "Comparativo", None, resumido)
-
-def criar_dataframe_resumido(df):
-    if df is None or df.empty: 
-        return pd.DataFrame()
-    return df[['year', 'Exportações (FOB)', 'Exportações (KG)',
-               'Importações (FOB)', 'Importações (KG)',
-               'Balança Comercial (FOB)', 'Balança Comercial (KG)']].rename(columns={'year': 'Ano'})
+        
+        st.subheader("📈 Gráfico - Importações Acumuladas nos Últimos 12 Meses (KG)")
+        from modulos.grafico_importacoes_12meses import gerar_grafico_importacoes_12meses
+        fig_12m = gerar_grafico_importacoes_12meses(ncm_code, ncm_formatado)
+        if fig_12m is not None:
+            st.pyplot(fig_12m)
+        else:
+            st.warning("Não foi possível gerar o gráfico de importações 12 meses (dados indisponíveis).")
 
 def main():
     st.title("📊 Análise de Comércio Exterior")
+    
+    # 1. Obtenção de data de atualização
     last_updated_date, last_updated_year, last_updated_month = obter_data_ultima_atualizacao()
     if last_updated_date == "Erro":
         st.error("❌ Erro ao obter data de atualização.")
         st.stop()
     else:
         st.info(f"📅 Atualizado até: {last_updated_month}/{last_updated_year} ({last_updated_date})")
+    
+    # 2. Upload do arquivo Excel (opcional)
     uploaded_file = st.file_uploader("Upload do arquivo Excel:", type=["xlsx"])
     if uploaded_file:
         try:
@@ -177,21 +219,30 @@ def main():
         except Exception as e:
             st.error(f"Erro ao carregar arquivo Excel: {str(e)}")
             st.session_state.df_excel = None
+    
+    # 3. Input do NCM
     ncm_code = st.text_input("Digite o código NCM:")
     if not ncm_code:
         st.stop()
+    
+    # 4. Formatação do NCM para exibição
     ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
     st.write(f"📌 NCM selecionado: {ncm_formatado}")
+    
+    # 5. Consulta a descrição do NCM via API
     descricao = obter_descricao_ncm(ncm_code)
     if "Erro" in descricao:
         st.error(descricao)
         st.stop()
     st.success(f"📖 Descrição: **{descricao}** (NCM: {ncm_formatado})")
+    
+    # 6. Se houver Excel, exibe os dados dele
     exibir_excel(ncm_code)
+    
+    # 7. Exibe dados e gráficos oriundos da API
     exibir_api(ncm_code, last_updated_month, last_updated_year)
 
 if __name__ == "__main__":
     main()
-
 
 
