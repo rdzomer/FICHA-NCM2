@@ -13,6 +13,7 @@ import modulos.grafico_exportacoes_kg as graf_exp
 import modulos.grafico_importacoes_fob as graf_fob
 import modulos.grafico_exportacoes_fob as graf_exp_fob
 import modulos.grafico_preco_medio_fob as graf_preco_medio
+import modulos.resumo_tabelas as resumo_tabelas
 from io import BytesIO
 from babel.numbers import format_decimal
 
@@ -87,23 +88,11 @@ def exibir_api(ncm_code, last_updated_month, last_updated_year):
     periodo_2025_parcial = f"2025 (Até {last_updated_month}/{last_updated_year})"
     exibir_dados(df_2025, periodo_2025, error_2025, exibir_resumida)
     exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial, exibir_resumida)
-    if exibir_resumida:
-        if df_2025 is not None and not df_2025.empty:
-            df_download = criar_dataframe_resumido(df_2025)
-            if df_2024 is not None and not df_2024.empty and df_2025_parcial is not None and not df_2025_parcial.empty:
-                df_comparativo_resumido = criar_dataframe_resumido(pd.concat([df_2024, df_2025_parcial]))
-                df_download = pd.concat([df_download, df_comparativo_resumido], ignore_index=False)
-        elif df_2024 is not None and not df_2024.empty and df_2025_parcial is not None and not df_2025_parcial.empty:
-            df_download = criar_dataframe_resumido(pd.concat([df_2024, df_2025_parcial]))
-        else:
-            df_download = pd.DataFrame()
-        if not df_download.empty:
-            excel_file = BytesIO()
-            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
-                df_download.to_excel(writer, sheet_name='Dados Resumidos', index=False)
-            excel_file.seek(0)
-            ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
-            st.download_button("📥 Baixar Tabela Resumida (Excel)", excel_file, f"comex_resumido_{ncm_formatado}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    
+    # Exibe os quadros-resumo logo após os dados comparativos
+    resumo_tabelas.exibir_resumos()
+    
+    # Geração dos gráficos
     if df_2025 is not None and not df_2025.empty:
         ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
         st.subheader("📈 Gráfico de Importações (KG)")
