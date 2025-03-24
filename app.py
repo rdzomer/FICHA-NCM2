@@ -17,29 +17,20 @@ from io import BytesIO
 from babel.numbers import format_decimal
 
 def formatar_numero(valor):
-    """
-    Formata números para exibição.
-    """
     try:
         return format_decimal(float(valor), format="#,##0.##", locale='pt_BR')
     except (ValueError, TypeError):
         return str(valor)
 
 def exibir_excel(ncm_code):
-    """
-    Se o usuário enviou um arquivo Excel, exibe as informações dele.
-    """
     if "df_excel" not in st.session_state or st.session_state.df_excel is None:
         return
-    
     st.subheader("📋 Dados do Excel")
     try:
         resultado_ncm, resultado_entidades = proc.buscar_informacoes_ncm_completo(st.session_state.df_excel, ncm_code)
     except Exception as e:
         st.error(f"Erro ao buscar informações do NCM no Excel: {str(e)}")
         return
-
-    # Exibe informações do NCM
     with st.container():
         st.markdown("### Departamento Responsável")
         if not resultado_ncm.empty:
@@ -56,8 +47,6 @@ def exibir_excel(ncm_code):
             st.markdown(ncm_info, unsafe_allow_html=True)
         else:
             st.warning("Informações do NCM não encontradas no Excel.")
-
-    # Exibe informações das entidades
     with st.container():
         st.markdown("### Informações das Entidades")
         if not resultado_entidades.empty:
@@ -85,34 +74,19 @@ def exibir_excel(ncm_code):
             st.warning("Não há informações das entidades para este NCM no Excel.")
 
 def exibir_api(ncm_code, last_updated_month, last_updated_year):
-    """
-    Consulta a API, exibe tabelas e gera os gráficos.
-    """
     st.subheader("📊 Dados da API e Gráficos")
-    
-    # Checkbox para exibir tabela resumida (opcional)
     exibir_resumida = st.checkbox("Exibir tabela resumida", key="chk_resumido")
-
-    # Para 2025 (Série Temporal)
     dados_export, dados_import = obter_dados_tuple(ncm_code, "2025", last_updated_month)
     df_2025, error_2025 = proc.processar_dados_export_import(dados_export, dados_import, last_updated_month)
     periodo_2025 = "Série Temporal"
-
-    # Para 2024
     dados_export, dados_import = obter_dados_tuple(ncm_code, "2024", last_updated_month)
     df_2024, error_2024 = proc.processar_dados_ano_anterior(dados_export, dados_import, last_updated_month)
     periodo_2024 = f"2024 (Até {last_updated_month}/{last_updated_year})"
-
-    # Para 2025 parcial
     dados_export, dados_import = obter_dados_tuple(ncm_code, "2025_parcial", last_updated_month)
     df_2025_parcial, error_2025_parcial = proc.processar_dados_ano_atual(dados_export, dados_import, last_updated_month)
     periodo_2025_parcial = f"2025 (Até {last_updated_month}/{last_updated_year})"
-
-    # Exibição das tabelas
     exibir_dados(df_2025, periodo_2025, error_2025, exibir_resumida)
     exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial, exibir_resumida)
-
-    # Download da tabela resumida
     if exibir_resumida:
         if df_2025 is not None and not df_2025.empty:
             df_download = criar_dataframe_resumido(df_2025)
@@ -123,7 +97,6 @@ def exibir_api(ncm_code, last_updated_month, last_updated_year):
             df_download = criar_dataframe_resumido(pd.concat([df_2024, df_2025_parcial]))
         else:
             df_download = pd.DataFrame()
-
         if not df_download.empty:
             excel_file = BytesIO()
             with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
@@ -131,46 +104,25 @@ def exibir_api(ncm_code, last_updated_month, last_updated_year):
             excel_file.seek(0)
             ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
             st.download_button("📥 Baixar Tabela Resumida (Excel)", excel_file, f"comex_resumido_{ncm_formatado}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    # Geração dos gráficos (se houver dados)
     if df_2025 is not None and not df_2025.empty:
         ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
         st.subheader("📈 Gráfico de Importações (KG)")
-        # Tenta obter a função de geração de gráfico de importações em KG
-        try:
-            gerar_grafico_import = getattr(graf_kg, "gerar_grafico_importacoes_kg")
-        except AttributeError:
-            try:
-                gerar_grafico_import = getattr(graf_kg, "gerar_grafico_importacoes")
-            except AttributeError:
-                st.error("Função para gerar o gráfico de importações (KG) não foi encontrada.")
-                gerar_grafico_import = None
-
-        if gerar_grafico_import:
-            fig_import_kg = gerar_grafico_import(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
-            st.plotly_chart(fig_import_kg)
-
+        fig_import_kg = graf_kg.gerar_grafico_importacoes(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
+        st.plotly_chart(fig_import_kg)
         st.subheader("📈 Gráfico de Exportações (KG)")
         fig_export_kg = graf_exp.gerar_grafico_exportacoes(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
         st.plotly_chart(fig_export_kg)
-
         st.subheader("📈 Gráfico de Importações (US$ FOB)")
         fig_import_fob = graf_fob.gerar_grafico_importacoes_fob(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
         st.plotly_chart(fig_import_fob)
-
         st.subheader("📈 Gráfico de Exportações (US$ FOB)")
         fig_export_fob = graf_exp_fob.gerar_grafico_exportacoes_fob(df_2025, df_2024, ncm_formatado, last_updated_month, last_updated_year)
         st.plotly_chart(fig_export_fob)
-
         st.subheader("📈 Gráfico de Preço Médio (US$ FOB/KG)")
-        fig_preco_medio = graf_preco_medio.gerar_grafico_preco_medio(df_2025, df_2024, ncm_formatado)
+        fig_preco_medio = graf_preco_medio.gerar_grafico_preco_medio(df_2025, df_2024, ncm_formatado, last_updated_month)
         st.plotly_chart(fig_preco_medio)
 
 def obter_dados_tuple(ncm_code, tipo, last_updated_month):
-    """
-    Auxiliar para obter os dados de exportação e importação conforme o tipo de consulta.
-    Retorna uma tupla (dados_export, dados_import) usando a função da API.
-    """
     if tipo == "2025":
         dados_export, _ = obter_dados_comerciais(ncm_code, "export")
         dados_import, _ = obter_dados_comerciais(ncm_code, "import")
@@ -185,45 +137,36 @@ def obter_dados_tuple(ncm_code, tipo, last_updated_month):
     return dados_export, dados_import
 
 def exibir_dados(df, periodo, error, resumido=False):
-    """Exibe tabelas de dados, com opção de resumo."""
     st.markdown(f"### Dados de {periodo}")
     if error:
         st.warning(error)
         return
-
     if df is None or df.empty:
         st.write("Nenhum dado para exibir.")
         return
-
     if resumido:
         df = criar_dataframe_resumido(df)
     elif 'year' in df.columns:
         df = df.rename(columns={'year': 'Ano'})
-
     df_formatado = df.copy()
     if 'Ano' in df_formatado:
         df_formatado['Ano'] = df_formatado['Ano'].astype(str)
-
     colunas_numericas = [col for col in df_formatado if col != 'Ano']
     df_formatado[colunas_numericas] = df_formatado[colunas_numericas].applymap(formatar_numero)
     st.dataframe(df_formatado)
 
 def exibir_comparativo(df_2024, df_2025_parcial, error_2024, error_2025_parcial, resumido=False):
-    """Exibe tabela comparativa entre 2024 e 2025 (mesmo período)."""
     st.markdown("### Comparativo 2024 x 2025 (Mesmo Período)")
     if error_2024 or error_2025_parcial:
         st.warning("Erro: " + (error_2024 or error_2025_parcial))
         return
-
     if df_2024 is None or df_2024.empty or df_2025_parcial is None or df_2025_parcial.empty:
         st.warning("Não há dados suficientes para comparação.")
         return
-
     df_comparativo = pd.concat([df_2024, df_2025_parcial], ignore_index=True)
     exibir_dados(df_comparativo, "Comparativo", None, resumido)
 
 def criar_dataframe_resumido(df):
-    """Cria DataFrame resumido com colunas selecionadas."""
     if df is None or df.empty: 
         return pd.DataFrame()
     return df[['year', 'Exportações (FOB)', 'Exportações (KG)',
@@ -232,16 +175,12 @@ def criar_dataframe_resumido(df):
 
 def main():
     st.title("📊 Análise de Comércio Exterior")
-    
-    # Data da última atualização da API
     last_updated_date, last_updated_year, last_updated_month = obter_data_ultima_atualizacao()
     if last_updated_date == "Erro":
         st.error("❌ Erro ao obter data de atualização.")
         st.stop()
     else:
         st.info(f"📅 Atualizado até: {last_updated_month}/{last_updated_year} ({last_updated_date})")
-    
-    # Upload do arquivo Excel (opcional)
     uploaded_file = st.file_uploader("Upload do arquivo Excel:", type=["xlsx"])
     if uploaded_file:
         try:
@@ -249,35 +188,21 @@ def main():
         except Exception as e:
             st.error(f"Erro ao carregar arquivo Excel: {str(e)}")
             st.session_state.df_excel = None
-
-    # Input do NCM
     ncm_code = st.text_input("Digite o código NCM:")
     if not ncm_code:
         st.stop()
-
-    # Formatação do NCM para exibição
     ncm_formatado = f"{str(ncm_code)[:4]}.{str(ncm_code)[4:6]}.{str(ncm_code)[6:]}"
     st.write(f"📌 NCM selecionado: {ncm_formatado}")
-
-    # Consulta a descrição do NCM via API
     descricao = obter_descricao_ncm(ncm_code)
     if "Erro" in descricao:
         st.error(descricao)
         st.stop()
     st.success(f"📖 Descrição: **{descricao}** (NCM: {ncm_formatado})")
-
-    # Se houver Excel, exibe os dados dele
     exibir_excel(ncm_code)
-    
-    # Exibe dados e gráficos oriundos da API
     exibir_api(ncm_code, last_updated_month, last_updated_year)
 
 if __name__ == "__main__":
     main()
-
-
-
-
 
 
 
