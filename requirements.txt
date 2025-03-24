@@ -6,4 +6,5 @@ requests
 plotly
 openpyxl
 matplotlib
+plotly_express
 #urllib3<2
